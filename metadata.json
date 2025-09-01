@@ -1,0 +1,5 @@
+{
+  "name": "API Test Client",
+  "description": "A simple and elegant web application to test any API endpoint. Enter a URL, select an HTTP method, add headers and a body, and view the response instantly.",
+  "requestFramePermissions": []
+}
