@@ -6,7 +6,6 @@ import { ResponseDisplay } from './ResponseDisplay';
 import { GitHubImporter } from './GitHubImporter';
 import { ApiFinder } from './ApiFinder';
 import { LocalFileImporter } from './LocalFileImporter';
-import { BuildTester } from './BuildTester';
 
 const METHODS_WITH_BODY = [HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH];
 
@@ -171,7 +170,6 @@ export function ApiTester(): React.ReactNode {
     return (
         <div className="space-y-8">
             <GitHubImporter onFileImported={handleFileImported} onRepoContextChange={setRepoContext} />
-            <BuildTester repoContext={repoContext} />
             <ApiFinder onApiSelect={handleApiFound} />
             <LocalFileImporter onFileImported={handleFileImported} />
 

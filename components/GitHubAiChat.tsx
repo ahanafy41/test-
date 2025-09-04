@@ -5,7 +5,7 @@ import { RepoInfo, GitHubFile, ChatMessage, AgentAction } from '../types';
 // --- Icons ---
 const CloseIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l-3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
     </svg>
 );
 
@@ -116,62 +116,6 @@ export function GitHubAiChat({ repoInfo, files, pat, onClose, onPlanExecuted }: 
             
             const fileTree = files.map(f => `- ${f.path}`).join('\n');
             
-            const CONTEXT_CHAR_LIMIT = 150000;
-            const ignoredFiles = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
-            const ignoredExtensions = ['.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.pdf', '.zip', '.gz', '.DS_Store'];
-
-            let combinedContent = '';
-            const headers = getHeaders();
-
-            const relevantFiles = files.filter(file => {
-                const fileName = file.path.toLowerCase();
-                return !ignoredFiles.some(ignored => fileName.endsWith(ignored)) && !ignoredExtensions.some(ext => fileName.endsWith(ext));
-            });
-
-            const BATCH_SIZE = 10;
-            for (let i = 0; i < relevantFiles.length; i += BATCH_SIZE) {
-                if (combinedContent.length >= CONTEXT_CHAR_LIMIT) break;
-
-                const batch = relevantFiles.slice(i, i + BATCH_SIZE);
-                setLoadingMessage(`جاري تحليل الملفات... (${Math.min(i + batch.length, relevantFiles.length)}/${relevantFiles.length})`);
-
-                const promises = batch.map(file => 
-                    fetch(`https://api.github.com/repos/${repoInfo.path}/contents/${file.path}?ref=${repoInfo.defaultBranch}`, { headers })
-                        .then(res => {
-                            if (!res.ok) return Promise.resolve(null);
-                            return res.json();
-                        })
-                        .then(data => {
-                             if (data && data.content) {
-                                const content = decodeURIComponent(escape(atob(data.content)));
-                                return { path: file.path, content };
-                            }
-                            return null;
-                        })
-                        .catch(e => {
-                            console.warn(`Could not fetch content for ${file.path}`, e);
-                            return null;
-                        })
-                );
-
-                const results = await Promise.all(promises);
-
-                for (const result of results) {
-                    if (!result) continue;
-                    if (combinedContent.length >= CONTEXT_CHAR_LIMIT) break;
-                    
-                    const contentToAdd = `\n\n--- FILE: ${result.path} ---\n\`\`\`\n${result.content}\n\`\`\`\n`;
-                    if (combinedContent.length + contentToAdd.length > CONTEXT_CHAR_LIMIT) {
-                        continue;
-                    }
-                    combinedContent += contentToAdd;
-                }
-            }
-
-            if (combinedContent.length >= CONTEXT_CHAR_LIMIT && !combinedContent.endsWith('...\n')) {
-                 combinedContent += "\n... (context truncated due to size limit)\n";
-            }
-
             const systemInstruction = `
 You are 'Fahim' (فاهم), an expert AI software engineer. You are friendly and helpful, and you communicate **exclusively in Egyptian Arabic.** Your job is to help the user modify their GitHub repository.
 
@@ -225,9 +169,8 @@ Your JSON output must be an array of "action" objects. Each object must have an 
 - **Repository:** ${repoInfo.path}
 - **Full File Structure:**
 ${fileTree}
-- **Selected File Contents:**
-You have been provided with the content of the most relevant files in the repository to give you context for your plan.
-${combinedContent || 'No file contents were loaded for context. Rely on the file structure.'}
+
+**IMPORTANT:** You do not have the content of these files. You MUST create your plan based on the file paths and your general knowledge of software development. Make reasonable assumptions about the file contents based on their names and locations.
 
 Now, start the conversation by introducing yourself and asking how you can help, in Egyptian Arabic.
 `;
@@ -253,7 +196,7 @@ Now, start the conversation by introducing yourself and asking how you can help,
         } finally {
             setIsLoading(false);
         }
-    }, [repoInfo, files, getHeaders, pat]);
+    }, [repoInfo, files, pat]);
     
     useEffect(() => {
         initializeAgent();

@@ -69,67 +69,13 @@ export function FileAiChat({ filePath, fileContent, repoInfo, files, pat, onAppl
             });
             setChat(newChat);
             
-            const headers = { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' };
-            const CONTEXT_CHAR_LIMIT = 150000;
-            const ignoredFiles = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
-            const ignoredExtensions = ['.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.pdf', '.zip', '.gz'];
-
             let combinedContent = `The user is currently editing this file. Its content is most important.\n\n--- CURRENT FILE: ${filePath} ---\n\`\`\`\n${fileContent}\n\`\`\`\n`;
-            
-            const otherFiles = files.filter(f => {
-                if (f.path === filePath) return false;
-                const fileName = f.path.toLowerCase();
-                return !ignoredFiles.some(ignored => fileName.endsWith(ignored)) && !ignoredExtensions.some(ext => fileName.endsWith(ext));
-            });
-            
-            const BATCH_SIZE = 10;
-            for (let i = 0; i < otherFiles.length; i += BATCH_SIZE) {
-                if (combinedContent.length >= CONTEXT_CHAR_LIMIT) break;
-
-                const batch = otherFiles.slice(i, i + BATCH_SIZE);
-                const promises = batch.map(file => 
-                    fetch(`https://api.github.com/repos/${repoInfo.path}/contents/${file.path}?ref=${repoInfo.defaultBranch}`, { headers })
-                        .then(res => res.ok ? res.json() : null)
-                        .then(data => {
-                            if (data && data.content) {
-                                const content = decodeURIComponent(escape(atob(data.content)));
-                                return { path: file.path, content };
-                            }
-                            return null;
-                        })
-                        .catch(e => {
-                            console.warn(`Could not fetch ${file.path}`, e);
-                            return null;
-                        })
-                );
-
-                const results = await Promise.all(promises);
-
-                for (const result of results) {
-                    if (!result || combinedContent.length >= CONTEXT_CHAR_LIMIT) continue;
-
-                    const contentToAdd = `\n\n--- FILE: ${result.path} ---\n\`\`\`\n${result.content}\n\`\`\`\n`;
-
-                    if (combinedContent.length + contentToAdd.length > CONTEXT_CHAR_LIMIT) {
-                        const remainingSpace = CONTEXT_CHAR_LIMIT - combinedContent.length;
-                        if (remainingSpace > 200) {
-                            const truncatedContent = result.content.substring(0, remainingSpace - 150);
-                            combinedContent += `\n\n--- FILE: ${result.path} ---\n\`\`\`\n${truncatedContent}\n... (file truncated)\n\`\`\`\n`;
-                        }
-                        break;
-                    } else {
-                        combinedContent += contentToAdd;
-                    }
-                }
-            }
-            
             const fileTree = files.map(f => f.path === filePath ? `- ${f.path} (currently editing)` : `- ${f.path}`).join('\n');
 
             const initialPrompt = `
-                You are an expert AI software engineer with full context of an entire repository. 
-                Your primary task is to help me modify the code for the file I currently have open: \`${filePath}\`.
+                You are an expert AI software engineer. Your primary task is to help me modify the code for the file I currently have open: \`${filePath}\`.
 
-                You have been provided with the full content of the current file, along with the content of other relevant files and the complete file structure of the repository. Use this context to make intelligent, repository-aware suggestions.
+                You have been provided with the full content of this specific file and the complete file structure of the repository. You MUST use this context to make intelligent suggestions. You do not have the contents of other files.
 
                 **CRITICAL INSTRUCTIONS:**
                 1.  **Focus on the Current File:** My main goal is to modify \`${filePath}\`. When I ask for code changes, you **MUST** respond with the **complete, updated content of the entire \`${filePath}\` file**.
